@@ -450,6 +450,7 @@ task_process_status CoppOrch::processCoppRule(Consumer& consumer)
         /* Set host interface trap group */
         if (m_trap_group_map.find(trap_group_name) != m_trap_group_map.end())
         {
+#ifdef DNX_SUPPORT
             /* Create or set policer */
             if (!policer_attribs.empty())
             {
@@ -479,7 +480,7 @@ task_process_status CoppOrch::processCoppRule(Consumer& consumer)
                     }
                 }
             }
-
+#endif
             for (sai_uint32_t ind = 0; ind < trap_gr_attribs.size(); ind++)
             {
                 auto trap_gr_attr = trap_gr_attribs[ind];
