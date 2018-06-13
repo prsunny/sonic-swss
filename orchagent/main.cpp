@@ -212,7 +212,7 @@ int main(int argc, char **argv)
         }
     }
 
-#ifndef DNX_SUPPORT
+#ifdef DNX_SUPPORT
     sai_attribute_t sys_mac;
     sys_mac.id = SAI_SWITCH_ATTR_SRC_MAC_ADDRESS;
     memcpy(sys_mac.value.mac, gMacAddress.getMac(), 6);
@@ -249,7 +249,7 @@ int main(int argc, char **argv)
     underlay_intf_attr.value.s32 = SAI_ROUTER_INTERFACE_TYPE_LOOPBACK;
     underlay_intf_attrs.push_back(underlay_intf_attr);
 
-#ifndef DNX_SUPPORT
+#ifdef DNX_SUPPORT
     underlay_intf_attr.id = SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS;
     memcpy(underlay_intf_attr.value.mac, gMacAddress.getMac(), 6);
     underlay_intf_attrs.push_back(underlay_intf_attr);
