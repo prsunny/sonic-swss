@@ -78,6 +78,9 @@ void SwitchOrch::doTask(Consumer &consumer)
                     case SAI_SWITCH_ATTR_ECMP_DEFAULT_HASH_SEED:
                     case SAI_SWITCH_ATTR_LAG_DEFAULT_HASH_SEED:
                         attr.value.u32 = to_uint<uint32_t>(value);
+#ifndef DNX_SUPPORT
+                        invalid_attr = true;
+#endif
                         break;
 
                     case SAI_SWITCH_ATTR_FDB_AGING_TIME:

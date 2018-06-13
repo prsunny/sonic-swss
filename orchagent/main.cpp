@@ -212,6 +212,18 @@ int main(int argc, char **argv)
         }
     }
 
+#ifndef DNX_SUPPORT
+    sai_attribute_t sys_mac;
+    sys_mac.id = SAI_SWITCH_ATTR_SRC_MAC_ADDRESS;
+    memcpy(sys_mac.value.mac, gMacAddress.getMac(), 6);
+    status = sai_switch_api->set_switch_attribute(gSwitchId, &sys_mac);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("Fail to set system_mac %d", status);
+    }
+    SWSS_LOG_NOTICE("Set system_mac ");
+#endif
+
     /* Get the default virtual router ID */
     attr.id = SAI_SWITCH_ATTR_DEFAULT_VIRTUAL_ROUTER_ID;
 
@@ -236,6 +248,12 @@ int main(int argc, char **argv)
     underlay_intf_attr.id = SAI_ROUTER_INTERFACE_ATTR_TYPE;
     underlay_intf_attr.value.s32 = SAI_ROUTER_INTERFACE_TYPE_LOOPBACK;
     underlay_intf_attrs.push_back(underlay_intf_attr);
+
+#ifndef DNX_SUPPORT
+    underlay_intf_attr.id = SAI_ROUTER_INTERFACE_ATTR_SRC_MAC_ADDRESS;
+    memcpy(underlay_intf_attr.value.mac, gMacAddress.getMac(), 6);
+    underlay_intf_attrs.push_back(underlay_intf_attr);
+#endif
 
     status = sai_router_intfs_api->create_router_interface(&gUnderlayIfId, gSwitchId, (uint32_t)underlay_intf_attrs.size(), underlay_intf_attrs.data());
     if (status != SAI_STATUS_SUCCESS)

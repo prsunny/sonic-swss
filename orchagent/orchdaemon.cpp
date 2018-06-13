@@ -81,7 +81,9 @@ bool OrchDaemon::init()
         CFG_PFC_PRIORITY_TO_PRIORITY_GROUP_MAP_TABLE_NAME,
         CFG_PFC_PRIORITY_TO_QUEUE_MAP_TABLE_NAME
     };
+#ifdef DNX_SUPPORT
     QosOrch *qos_orch = new QosOrch(m_configDb, qos_tables);
+#endif
 
     vector<string> buffer_tables = {
         CFG_BUFFER_POOL_TABLE_NAME,
@@ -91,7 +93,9 @@ bool OrchDaemon::init()
         CFG_BUFFER_PORT_INGRESS_PROFILE_LIST_NAME,
         CFG_BUFFER_PORT_EGRESS_PROFILE_LIST_NAME
     };
-    gBufferOrch = new BufferOrch(m_configDb, buffer_tables);
+#ifdef DNX_SUPPORT
+    BufferOrch *buffer_orch = new BufferOrch(m_configDb, buffer_tables);
+#endif
 
     TableConnector appDbMirrorSession(m_applDb, APP_MIRROR_SESSION_TABLE_NAME);
     TableConnector confDbMirrorSession(m_configDb, CFG_MIRROR_SESSION_TABLE_NAME);
@@ -108,9 +112,14 @@ bool OrchDaemon::init()
         stateDbLagTable
     };
 
+#ifdef DNX_SUPPORT
     gAclOrch = new AclOrch(acl_table_connectors, gPortsOrch, mirror_orch, gNeighOrch, gRouteOrch);
 
-    m_orchList = { switch_orch, gCrmOrch, gPortsOrch, intfs_orch, gNeighOrch, gRouteOrch, copp_orch, tunnel_decap_orch, qos_orch, gBufferOrch, mirror_orch, gAclOrch, gFdbOrch, vrf_orch };
+    m_orchList = { switch_orch, gCrmOrch, gPortsOrch, intfs_orch, gNeighOrch, gRouteOrch, copp_orch, tunnel_decap_orch, qos_orch, buffer_orch, mirror_orch, gAclOrch, gFdbOrch, vrf_orch };
+#else
+    m_orchList = { switch_orch, gCrmOrch, gPortsOrch, intfs_orch, gNeighOrch, gRouteOrch, copp_orch, tunnel_decap_orch, mirror_orch, gFdbOrch, vrf_orch };
+#endif
+
     m_select = new Select();
 
 
@@ -196,6 +205,7 @@ bool OrchDaemon::init()
             SAI_QUEUE_ATTR_PAUSE_STATUS,
         };
 
+#ifdef DNX_SUPPORT
         m_orchList.push_back(new PfcWdSwOrch<PfcWdAclHandler, PfcWdLossyHandler>(
                     m_configDb,
                     pfc_wd_tables,
@@ -203,6 +213,7 @@ bool OrchDaemon::init()
                     queueStatIds,
                     queueAttrIds,
                     PFC_WD_POLL_MSECS));
+#endif
     }
 
     m_orchList.push_back(&CounterCheckOrch::getInstance(m_configDb));
