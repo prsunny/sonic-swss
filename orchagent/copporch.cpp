@@ -507,7 +507,7 @@ task_process_status CoppOrch::processCoppRule(Consumer& consumer)
 
             SWSS_LOG_NOTICE("Create host interface trap group %s", trap_group_name.c_str());
             m_trap_group_map[trap_group_name] = new_trap;
-
+#ifdef DNX_SUPPORT
             /* Create policer */
             if (!policer_attribs.empty())
             {
@@ -516,6 +516,7 @@ task_process_status CoppOrch::processCoppRule(Consumer& consumer)
                     return task_process_status::task_failed;
                 }
             }
+#endif
         }
 
         /* Apply traps to trap group */
@@ -526,12 +527,14 @@ task_process_status CoppOrch::processCoppRule(Consumer& consumer)
     }
     else if (op == DEL_COMMAND)
     {
+#ifdef DNX_SUPPORT
         /* Remove policer if any */
         if (!removePolicer(trap_group_name))
         {
             SWSS_LOG_ERROR("Failed to remove policer from trap group %s", trap_group_name.c_str());
             return task_process_status::task_failed;
         }
+#endif
 
         /* Do not remove default trap group */
         if (trap_group_name == default_trap_group)

@@ -279,6 +279,7 @@ bool TunnelDecapOrch::addDecapTunnel(string key, string type, IpAddresses dst_ip
 
     tunnelTable[key] = { tunnel_id, {} };
 
+#ifdef DNX_SUPPORT
     // TODO:
     // there should also be "business logic" for netbouncer in the "tunnel application" code, which is a different source file and daemon process
 
@@ -287,6 +288,7 @@ bool TunnelDecapOrch::addDecapTunnel(string key, string type, IpAddresses dst_ip
     {
         return false;
     }
+#endif
 
     return true;
 }
@@ -480,13 +482,13 @@ bool TunnelDecapOrch::setIpAttribute(string key, IpAddresses new_ip_addresses, s
             tunnel_info->tunnel_term_info.push_back({ tunnel_entry_info.tunnel_term_id, ip });
         }
     }
-
+#ifdef DNX_SUPPORT
     // add all the new ip addresses
     if(!addDecapTunnelTermEntries(key, new_ip_addresses, tunnel_id))
     {
         return false;
     }
-
+#endif
     return true;
 }
 
