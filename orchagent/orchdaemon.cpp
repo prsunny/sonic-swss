@@ -93,9 +93,7 @@ bool OrchDaemon::init()
         CFG_BUFFER_PORT_INGRESS_PROFILE_LIST_NAME,
         CFG_BUFFER_PORT_EGRESS_PROFILE_LIST_NAME
     };
-#ifdef DNX_SUPPORT
-    BufferOrch *buffer_orch = new BufferOrch(m_configDb, buffer_tables);
-#endif
+    gBufferOrch = new BufferOrch(m_configDb, buffer_tables);
 
     TableConnector appDbMirrorSession(m_applDb, APP_MIRROR_SESSION_TABLE_NAME);
     TableConnector confDbMirrorSession(m_configDb, CFG_MIRROR_SESSION_TABLE_NAME);
@@ -120,8 +118,12 @@ bool OrchDaemon::init()
         CFG_DTEL_EVENT_TABLE_NAME
     };
 
+#ifdef DNX_SUPPORT
     m_orchList = { switch_orch, gCrmOrch, gBufferOrch, gPortsOrch, intfs_orch, gNeighOrch, gRouteOrch, copp_orch, tunnel_decap_orch, qos_orch, mirror_orch };
 
+#else
+    m_orchList = { switch_orch, gCrmOrch, gBufferOrch, gPortsOrch, intfs_orch, gNeighOrch, gRouteOrch, copp_orch, tunnel_decap_orch, mirror_orch };
+#endif
     bool initialize_dtel = false;
     if (platform == BFN_PLATFORM_SUBSTRING || platform == VS_PLATFORM_SUBSTRING)
     {

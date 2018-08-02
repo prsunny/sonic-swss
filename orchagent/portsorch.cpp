@@ -559,6 +559,10 @@ bool PortsOrch::bindAclTable(sai_object_id_t id, sai_object_id_t table_oid, sai_
                 break;
             case Port::LAG:
                 bind_type = SAI_ACL_BIND_POINT_TYPE_LAG;
+#ifndef DNX_SUPPORT
+                SWSS_LOG_NOTICE("Unsupported for LAG: port %s", p.m_alias.c_str());
+                return false;
+#endif
                 break;
             case Port::VLAN:
                 bind_type = SAI_ACL_BIND_POINT_TYPE_VLAN;
