@@ -343,7 +343,7 @@ void RouteOrch::doTask(Consumer& consumer)
 
             if (m_syncdRoutes.find(ip_prefix) == m_syncdRoutes.end() || m_syncdRoutes[ip_prefix] != ip_addresses)
             {
-                if (addRoute(ip_prefix, ip_addresses))
+                if (addRoute(ip_prefix, ip_addresses, alias))
                     it = consumer.m_toSync.erase(it);
                 else
                     it++;
@@ -492,6 +492,12 @@ void RouteOrch::decreaseNextHopRefCount(IpAddresses ipAddresses)
 
 bool RouteOrch::isRefCounterZero(const IpAddresses& ipAddresses) const
 {
+    if (ipAddresses.getSize() == 1)
+    {
+        IpAddress ip_address(ipAddresses.to_string());
+        return m_neighOrch->getNextHopRefCount(ip_address) == 0;
+    }
+
     if (!hasNextHopGroup(ipAddresses))
     {
         return true;
@@ -718,7 +724,7 @@ void RouteOrch::addTempRoute(IpPrefix ipPrefix, IpAddresses nextHops)
     addRoute(ipPrefix, tmp_next_hop);
 }
 
-bool RouteOrch::addRoute(IpPrefix ipPrefix, IpAddresses nextHops)
+bool RouteOrch::addRoute(IpPrefix ipPrefix, IpAddresses nextHops, string alias)
 {
     SWSS_LOG_ENTER();
 
@@ -736,9 +742,15 @@ bool RouteOrch::addRoute(IpPrefix ipPrefix, IpAddresses nextHops)
         }
         else
         {
-            SWSS_LOG_INFO("Failed to get next hop %s for %s",
-                    nextHops.to_string().c_str(), ipPrefix.to_string().c_str());
-            return false;
+            SWSS_LOG_INFO("Next hop %s for %s not created, alias %s",
+                    nextHops.to_string().c_str(), ipPrefix.to_string().c_str(), alias.c_str());
+
+            if (!m_neighOrch->addNextHop(ip_address, alias))
+            {
+                return false;
+            }
+
+            next_hop_id = m_neighOrch->getNextHopId(ip_address);
         }
     }
     /* The route is pointing to a next hop group */
@@ -805,6 +817,14 @@ bool RouteOrch::addRoute(IpPrefix ipPrefix, IpAddresses nextHops)
             {
                 removeNextHopGroup(nextHops);
             }
+            else
+            {
+                if (isRefCounterZero(nextHops))
+                {
+                    IpAddress ip_address(nextHops.to_string());
+                    m_neighOrch->removeNextHop(ip_address, alias);
+                }
+            }
             return false;
         }
 
@@ -862,6 +882,15 @@ bool RouteOrch::addRoute(IpPrefix ipPrefix, IpAddresses nextHops)
         {
             removeNextHopGroup(it_route->second);
         }
+        else if (it_route->second.getSize() == 1)
+        {
+            if (isRefCounterZero(it_route->second))
+            {
+                IpAddress ip_address(it_route->second.to_string());
+                m_neighOrch->removeNextHop(ip_address, alias);
+            }
+        }
+
         SWSS_LOG_INFO("Set route %s with next hop(s) %s",
                 ipPrefix.to_string().c_str(), nextHops.to_string().c_str());
     }

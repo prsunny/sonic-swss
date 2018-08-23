@@ -69,14 +69,14 @@ public:
     bool ifChangeInformNextHop(const string &, bool);
     bool isNextHopFlagSet(const IpAddress &, const uint32_t);
 
+    bool addNextHop(IpAddress, string);
+    bool removeNextHop(IpAddress, string);
+
 private:
     IntfsOrch *m_intfsOrch;
 
     NeighborTable m_syncdNeighbors;
     NextHopTable m_syncdNextHops;
-
-    bool addNextHop(IpAddress, string);
-    bool removeNextHop(IpAddress, string);
 
     bool addNeighbor(NeighborEntry, MacAddress);
     bool removeNeighbor(NeighborEntry);

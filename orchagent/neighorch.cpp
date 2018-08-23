@@ -202,6 +202,39 @@ bool NeighOrch::removeNextHop(IpAddress ipAddress, string alias)
         return false;
     }
 
+    sai_status_t status;
+    sai_object_id_t next_hop_id = m_syncdNextHops[ipAddress].next_hop_id;
+    status = sai_next_hop_api->remove_next_hop(next_hop_id);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        /* When next hop is not found, we continue to remove neighbor entry. */
+        if (status == SAI_STATUS_ITEM_NOT_FOUND)
+        {
+            SWSS_LOG_ERROR("Failed to locate next hop %s on %s, rv:%d",
+                    ipAddress.to_string().c_str(), alias.c_str(), status);
+        }
+        else
+        {
+            SWSS_LOG_ERROR("Failed to remove next hop %s on %s, rv:%d",
+                    ipAddress.to_string().c_str(), alias.c_str(), status);
+            return false;
+        }
+    }
+    SWSS_LOG_NOTICE("Removed next hop %s on %s",
+            ipAddress.to_string().c_str(), alias.c_str());
+
+    if (status != SAI_STATUS_ITEM_NOT_FOUND)
+    {
+        if (ipAddress.isV4())
+        {
+            gCrmOrch->decCrmResUsedCounter(CrmResourceType::CRM_IPV4_NEXTHOP);
+        }
+        else
+        {
+            gCrmOrch->decCrmResUsedCounter(CrmResourceType::CRM_IPV6_NEXTHOP);
+        }
+    }
+
     m_syncdNextHops.erase(ipAddress);
     m_intfsOrch->decreaseRouterIntfsRefCount(alias);
     return true;
@@ -453,39 +486,6 @@ bool NeighOrch::removeNeighbor(NeighborEntry neighborEntry)
     neighbor_entry.rif_id = rif_id;
     neighbor_entry.switch_id = gSwitchId;
     copy(neighbor_entry.ip_address, ip_address);
-
-    sai_object_id_t next_hop_id = m_syncdNextHops[ip_address].next_hop_id;
-    status = sai_next_hop_api->remove_next_hop(next_hop_id);
-    if (status != SAI_STATUS_SUCCESS)
-    {
-        /* When next hop is not found, we continue to remove neighbor entry. */
-        if (status == SAI_STATUS_ITEM_NOT_FOUND)
-        {
-            SWSS_LOG_ERROR("Failed to locate next hop %s on %s, rv:%d",
-                           ip_address.to_string().c_str(), alias.c_str(), status);
-        }
-        else
-        {
-            SWSS_LOG_ERROR("Failed to remove next hop %s on %s, rv:%d",
-                           ip_address.to_string().c_str(), alias.c_str(), status);
-            return false;
-        }
-    }
-
-    SWSS_LOG_NOTICE("Removed next hop %s on %s",
-                    ip_address.to_string().c_str(), alias.c_str());
-
-    if (status != SAI_STATUS_ITEM_NOT_FOUND)
-    {
-        if (neighbor_entry.ip_address.addr_family == SAI_IP_ADDR_FAMILY_IPV4)
-        {
-            gCrmOrch->decCrmResUsedCounter(CrmResourceType::CRM_IPV4_NEXTHOP);
-        }
-        else
-        {
-            gCrmOrch->decCrmResUsedCounter(CrmResourceType::CRM_IPV6_NEXTHOP);
-        }
-    }
 
     status = sai_neighbor_api->remove_neighbor_entry(&neighbor_entry);
     if (status != SAI_STATUS_SUCCESS)

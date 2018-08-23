@@ -79,7 +79,7 @@ private:
     NextHopObserverTable m_nextHopObservers;
 
     void addTempRoute(IpPrefix, IpAddresses);
-    bool addRoute(IpPrefix, IpAddresses);
+    bool addRoute(IpPrefix, IpAddresses, string="");
     bool removeRoute(IpPrefix);
 
     void doTask(Consumer& consumer);
