@@ -518,6 +518,16 @@ bool VxlanVnetOrch::addOperation(const Request& request)
         tunnel_obj->createTunnel(map_type::VRID_TO_VNI, map_type::VNI_TO_VRID);
     }
 
+    VRFOrch* vrf_orch = gDirectory.get<VRFOrch*>();
+    if (!vrf_orch->isVnetexists(vnet_name))
+    {
+        SWSS_LOG_INFO("VRF not created for VNET %s", vnet_name.c_str());
+        return false;
+    }
+
+    sai_object_id_t ing_vrf_id = vrf_orch->getVRFidIngress(vnet_name);
+    sai_object_id_t egr_vrf_id = vrf_orch->getVRFidEgress(vnet_name);
+
     auto vni_id  = static_cast<sai_uint32_t>(request.getAttrUint("vni"));
     if (vni_id >= 1<<24)
     {
@@ -525,13 +535,9 @@ bool VxlanVnetOrch::addOperation(const Request& request)
         return true;
     }
 
-    //@Todo
-    //Get VRF Id
-    sai_object_id_t ing_vrf_id = 0x0;
-    sai_object_id_t egr_vrf_id = 0x0;
+    auto &peer_vnet  = request.getAttrSet("peer_list");
 
-    vnet_entry_t entry = {tunnel_name, vni_id, {}};
-
+    vnet_entry_t entry = {tunnel_name, vni_id, peer_vnet};
     try
     {
         /*
@@ -568,6 +574,10 @@ bool VxlanVnetOrch::delOperation(const Request& request)
     return true;
 }
 
+/*
+ * FIXME - This must be handled by IntfMgrD
+ */
+
 bool VnetIntfOrch::addOperation(const Request& request)
 {
     SWSS_LOG_ENTER();
@@ -600,5 +610,3 @@ bool VnetIntfOrch::delOperation(const Request& request)
 
     return true;
 }
-
-

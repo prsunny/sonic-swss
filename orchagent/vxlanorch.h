@@ -5,6 +5,7 @@
 #include <memory>
 #include "request_parser.h"
 #include "portsorch.h"
+#include "vrforch.h"
 
 enum class map_type
 {
@@ -139,7 +140,7 @@ const request_description_t vxlan_vnet_request_description = {
             {
                 { "vxlan_tunnel", REQ_T_STRING },
                 { "vni", REQ_T_UINT },
-                { "peer_list", REQ_T_STRING_LIST },
+                { "peer_list", REQ_T_SET },
             },
             { "vxlan_tunnel", "vni" }
 };
@@ -176,6 +177,9 @@ private:
     VxlanVnetRequest request_;
 };
 
+/*
+ * FIXME - This must be handled by IntfMgrD
+ */
 const request_description_t vnet_intf_request_description = {
             { REQ_T_STRING, REQ_T_IP },
             {

@@ -20,6 +20,7 @@ bool VRFOrch::addOperation(const Request& request)
 
     sai_attribute_t attr;
     vector<sai_attribute_t> attrs;
+    string vnet_name = "";
 
     for (const auto& name: request.getAttrFieldNames())
     {
@@ -54,6 +55,10 @@ bool VRFOrch::addOperation(const Request& request)
             attr.id = SAI_VIRTUAL_ROUTER_ATTR_UNKNOWN_L3_MULTICAST_PACKET_ACTION;
             attr.value.s32 = request.getAttrPacketAction("l3_mc_action");
         }
+        else if (name == "vnet_name")
+        {
+            vnet_name = request.getAttrString("vnet_name");
+        }
         else
         {
             SWSS_LOG_ERROR("Logic error: Unknown attribute: %s", name.c_str());
@@ -80,6 +85,32 @@ bool VRFOrch::addOperation(const Request& request)
 
         vrf_table_[vrf_name] = router_id;
         SWSS_LOG_NOTICE("VRF '%s' was added", vrf_name.c_str());
+
+        /*
+         * FIXME - If VNET, then both ingress and egress VRF must be created
+         * This must be revisited in case separate request comes
+         */
+
+        if (!vnet_name.empty())
+        {
+            struct VnetEntry ent = {vrf_name, router_id, 0x0};
+
+            sai_status_t status = sai_virtual_router_api->create_virtual_router(&router_id,
+                                                                                gSwitchId,
+                                                                                static_cast<uint32_t>(attrs.size()),
+                                                                                attrs.data());
+            if (status != SAI_STATUS_SUCCESS)
+            {
+                SWSS_LOG_ERROR("Failed to create virtual router name: %s, rv: %d", vrf_name.c_str(), status);
+                return false;
+            }
+
+            ent.egr_vrf = router_id;
+            vnet_table_[vnet_name] = ent;
+
+            SWSS_LOG_NOTICE("VRF '%s' was added to Vnet '%s'", vrf_name.c_str(), vnet_name.c_str());
+
+        }
     }
     else
     {
@@ -96,6 +127,8 @@ bool VRFOrch::addOperation(const Request& request)
                 return false;
             }
         }
+
+        // FIXME - Handle VNET case
 
         SWSS_LOG_NOTICE("VRF '%s' was updated", vrf_name.c_str());
     }
