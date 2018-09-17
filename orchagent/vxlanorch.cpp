@@ -492,41 +492,17 @@ bool VxlanTunnelMapOrch::delOperation(const Request& request)
     return true;
 }
 
-bool VxlanVnetOrch::addOperation(const Request& request)
+bool VxlanVrfMapOrch::addOperation(const Request& request)
 {
     SWSS_LOG_ENTER();
 
-    const auto& vnet_name = request.getKeyString(0);
-    SWSS_LOG_INFO("Vnet key '%s'", vnet_name.c_str());
-    if(isVnetExists(vnet_name))
-    {
-        SWSS_LOG_ERROR("Vnet peer '%s' exist", vnet_name.c_str());
-        return false;
-    }
-
-    auto tunnel_name = request.getAttrString("vxlan_tunnel");
+    auto tunnel_name = request.getKeyString(0);
     VxlanTunnelOrch* tunnel_orch = gDirectory.get<VxlanTunnelOrch*>();
     if (!tunnel_orch->isTunnelExists(tunnel_name))
     {
         SWSS_LOG_ERROR("Vxlan tunnel '%s' doesn't exist", tunnel_name.c_str());
         return false;
     }
-
-    auto& tunnel_obj = tunnel_orch->getVxlanTunnel(tunnel_name);
-    if (!tunnel_obj->isActive())
-    {
-        tunnel_obj->createTunnel(map_type::VRID_TO_VNI, map_type::VNI_TO_VRID);
-    }
-
-    VRFOrch* vrf_orch = gDirectory.get<VRFOrch*>();
-    if (!vrf_orch->isVnetexists(vnet_name))
-    {
-        SWSS_LOG_INFO("VRF not created for VNET %s", vnet_name.c_str());
-        return false;
-    }
-
-    sai_object_id_t ing_vrf_id = vrf_orch->getVRFidIngress(vnet_name);
-    sai_object_id_t egr_vrf_id = vrf_orch->getVRFidEgress(vnet_name);
 
     auto vni_id  = static_cast<sai_uint32_t>(request.getAttrUint("vni"));
     if (vni_id >= 1<<24)
@@ -535,37 +511,68 @@ bool VxlanVnetOrch::addOperation(const Request& request)
         return true;
     }
 
-    auto &peer_vnet  = request.getAttrSet("peer_list");
+    auto& tunnel_obj = tunnel_orch->getVxlanTunnel(tunnel_name);
+    if (!tunnel_obj->isActive())
+    {
+        tunnel_obj->createTunnel(map_type::VRID_TO_VNI, map_type::VNI_TO_VRID);
+    }
 
-    vnet_entry_t entry = {tunnel_name, vni_id, peer_vnet};
+    auto vrf_name = request.getAttrString("vrf");
+    VRFOrch* vrf_orch = gDirectory.get<VRFOrch*>();
+    if (!vrf_orch->isVRFexists(vrf_name))
+    {
+        SWSS_LOG_INFO("VRF not created for VNET %s", vrf_name.c_str());
+        return false;
+    }
+
+    const auto full_map_entry_name = request.getFullKey();
+    if (isVrfMapExists(full_map_entry_name))
+    {
+        SWSS_LOG_ERROR("Vxlan VRF map '%s' is already exist", full_map_entry_name.c_str());
+        return true;
+    }
+
+    const auto tunnel_map_entry_name = request.getKeyString(1);
+    sai_object_id_t ivrf, evrf;
+    if (!vrf_orch->isMapexists(vrf_name))
+    {
+        ivrf = evrf = vrf_orch->getVRFid(vrf_name);
+    }
+    else
+    {
+        auto vnet_name = vrf_orch->getVnetName(vrf_name);
+        ivrf = vrf_orch->getVRFidEgress(vnet_name);
+        evrf = vrf_orch->getVRFidIngress(vnet_name);
+    }
+
+    vrf_map_entry_t entry;
     try
     {
         /*
          * Create encap and decap mapper for each VRF per VNET entry
          */
-        auto encap_entry = tunnel_obj->addEncapMapperEntry(ing_vrf_id, vni_id);
-        auto decap_entry = tunnel_obj->addDecapMapperEntry(egr_vrf_id, vni_id);
+        entry.encap_id = tunnel_obj->addEncapMapperEntry(ivrf, vni_id);
+        entry.decap_id = tunnel_obj->addDecapMapperEntry(evrf, vni_id);
 
         SWSS_LOG_INFO("Vxlan tunnel encap entry '%lx' decap entry '0x%lx'",
-                       encap_entry, decap_entry);
+                entry.encap_id, entry.decap_id);
 
+        vxlan_vrf_table_[full_map_entry_name] = entry;
     }
     catch(const std::runtime_error& error)
     {
         SWSS_LOG_ERROR("Error adding tunnel map entry. Tunnel: %s. Entry: %s. Error: %s",
-            tunnel_name.c_str(), vnet_name.c_str(), error.what());
+            tunnel_name.c_str(), tunnel_map_entry_name.c_str(), error.what());
         return false;
     }
 
-    vxlan_vnet_table_[vnet_name] = entry;
-
-    SWSS_LOG_NOTICE("Vxlan tunnel map entry '%s' for tunnel '%s' was created",
-                     vnet_name.c_str(), tunnel_name.c_str());
+    SWSS_LOG_NOTICE("Vxlan vrf map entry '%s' for tunnel '%s' was created",
+                    tunnel_map_entry_name.c_str(), tunnel_name.c_str());
 
     return true;
 }
 
-bool VxlanVnetOrch::delOperation(const Request& request)
+bool VxlanVrfMapOrch::delOperation(const Request& request)
 {
     SWSS_LOG_ENTER();
 
@@ -583,8 +590,8 @@ bool VnetIntfOrch::addOperation(const Request& request)
     SWSS_LOG_ENTER();
 
     auto vnet_name = request.getAttrString("vnet_name");
-    VxlanVnetOrch* vnet_orch = gDirectory.get<VxlanVnetOrch*>();
-    if (!vnet_orch->isVnetExists(vnet_name))
+    VxlanVrfMapOrch* vnet_orch = gDirectory.get<VxlanVrfMapOrch*>();
+    if (!vnet_orch->isVrfMapExists(vnet_name))
     {
         SWSS_LOG_ERROR("Vnet '%s' doesn't exist", vnet_name.c_str());
         return false;

@@ -135,46 +135,44 @@ private:
     VxlanTunnelMapRequest request_;
 };
 
-const request_description_t vxlan_vnet_request_description = {
-            { REQ_T_STRING },
+const request_description_t vxlan_vrf_request_description = {
+            { REQ_T_STRING, REQ_T_STRING },
             {
-                { "vxlan_tunnel", REQ_T_STRING },
                 { "vni", REQ_T_UINT },
-                { "peer_list", REQ_T_SET },
+                { "vrf", REQ_T_STRING },
             },
-            { "vxlan_tunnel", "vni" }
+            { "vni", "vrf" }
 };
 
-class VxlanVnetRequest : public Request
+class VxlanVrfRequest : public Request
 {
 public:
-    VxlanVnetRequest() : Request(vxlan_vnet_request_description, '|') { }
+    VxlanVrfRequest() : Request(vxlan_vrf_request_description, ':') { }
 };
 
-struct vnet_entry_t {
-    string tunnel_name;
-    uint32_t vni;
-    std::set<string> peer_list;
+struct vrf_map_entry_t {
+    sai_object_id_t encap_id;
+    sai_object_id_t decap_id;
 };
 
-typedef std::map<string, vnet_entry_t> VxlanVnetTable;
+typedef std::map<string, vrf_map_entry_t> VxlanVrfTable;
 
-class VxlanVnetOrch : public Orch2
+class VxlanVrfMapOrch : public Orch2
 {
 public:
-    VxlanVnetOrch(DBConnector *db, const std::string& tableName) : Orch2(db, tableName, request_) { }
+    VxlanVrfMapOrch(DBConnector *db, const std::string& tableName) : Orch2(db, tableName, request_) { }
 
-    bool isVnetExists(const std::string& name) const
+    bool isVrfMapExists(const std::string& name) const
     {
-        return vxlan_vnet_table_.find(name) != std::end(vxlan_vnet_table_);
+        return vxlan_vrf_table_.find(name) != std::end(vxlan_vrf_table_);
     }
 
 private:
     virtual bool addOperation(const Request& request);
     virtual bool delOperation(const Request& request);
 
-    VxlanVnetTable vxlan_vnet_table_;
-    VxlanVnetRequest request_;
+    VxlanVrfTable vxlan_vrf_table_;
+    VxlanVrfRequest request_;
 };
 
 /*

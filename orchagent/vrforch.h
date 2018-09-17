@@ -16,6 +16,8 @@ const request_description_t request_description = {
         { "ip_opt_action", REQ_T_PACKET_ACTION },
         { "l3_mc_action",  REQ_T_PACKET_ACTION },
         { "vnet_name",     REQ_T_STRING },
+        { "fall_through",  REQ_T_BOOL },
+        { "peer_list",     REQ_T_SET },
     },
     { } // no mandatory attributes
 };
@@ -26,14 +28,40 @@ public:
     VRFRequest() : Request(request_description, ':') { }
 };
 
-struct VnetEntry
+class VNetObject
 {
-    std::string vrf_name;
-    sai_object_id_t ing_vrf;
-    sai_object_id_t egr_vrf;
-};
-typedef std::unordered_map<std::string, struct VnetEntry> VnetTable;
+public:
+    VNetObject(string vr_name, sai_object_id_t ivr_id, sai_object_id_t evr_id, set<string>& list)
+              :vrf_name(vr_name), i_vrf_id(ivr_id),e_vrf_id(evr_id)
+    {
+        peer_list = list;
+    }
 
+    sai_object_id_t getVRFidIngress() const
+    {
+        return i_vrf_id;
+    }
+
+    sai_object_id_t getVRFidEgress() const
+    {
+        return e_vrf_id;
+    }
+
+    string getVRFname() const
+    {
+        return vrf_name;
+    }
+
+private:
+    string vrf_name;
+    set<string> peer_list = {};
+    sai_object_id_t i_vrf_id;
+    sai_object_id_t e_vrf_id;
+};
+
+using VNetObject_T = std::unique_ptr<VNetObject>;
+typedef std::unordered_map<std::string, VNetObject_T> VNetTable;
+typedef std::unordered_map<std::string, std::string> VRFMapTable;
 
 class VRFOrch : public Orch2
 {
@@ -66,19 +94,31 @@ public:
 
     sai_object_id_t getVRFidIngress(const std::string& name) const
     {
-        return vnet_table_.at(name).ing_vrf;
+        return vnet_table_.at(name)->getVRFidIngress();
     }
 
     sai_object_id_t getVRFidEgress(const std::string& name) const
     {
-        return vnet_table_.at(name).egr_vrf;
+        return vnet_table_.at(name)->getVRFidEgress();
     }
+
+    bool isMapexists(const std::string& name) const
+    {
+        return map_table_.find(name) != std::end(map_table_);
+    }
+
+    string getVnetName(const std::string& vrf) const
+    {
+        return map_table_.at(vrf);
+    }
+
 private:
     virtual bool addOperation(const Request& request);
     virtual bool delOperation(const Request& request);
 
     VRFTable vrf_table_;
-    VnetTable vnet_table_;
+    VNetTable vnet_table_;
+    VRFMapTable map_table_; //VRF to Vnet Map
     VRFRequest request_;
 };
 
