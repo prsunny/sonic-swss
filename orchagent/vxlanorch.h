@@ -174,33 +174,3 @@ private:
     VxlanVrfTable vxlan_vrf_table_;
     VxlanVrfRequest request_;
 };
-
-/*
- * FIXME - This must be handled by IntfMgrD
- */
-const request_description_t vnet_intf_request_description = {
-            { REQ_T_STRING, REQ_T_IP },
-            {
-                { "vnet_name", REQ_T_STRING },
-            },
-            { "vnet_name" }
-};
-
-class VnetIntfRequest : public Request
-{
-public:
-    VnetIntfRequest() : Request(vnet_intf_request_description, '|') { }
-};
-
-class VnetIntfOrch : public Orch2
-{
-public:
-    VnetIntfOrch(DBConnector *db, const std::string& tableName) : Orch2(db, tableName, request_) { }
-
-private:
-    virtual bool addOperation(const Request& request);
-    virtual bool delOperation(const Request& request);
-
-
-    VnetIntfRequest request_;
-};
