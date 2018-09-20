@@ -42,6 +42,7 @@ int main(int argc, char **argv)
     {
         vector<string> cfg_intf_tables = {
             CFG_INTF_TABLE_NAME,
+            CFG_VNET_INTF_TABLE_NAME,
             CFG_LAG_INTF_TABLE_NAME,
             CFG_VLAN_INTF_TABLE_NAME,
         };
