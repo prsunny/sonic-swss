@@ -95,13 +95,6 @@ void IntfMgr::doTask(Consumer &consumer)
 
         vector<string> keys = tokenize(kfvKey(t), config_db_key_delimiter);
 
-        if (keys.size() != 2)
-        {
-            SWSS_LOG_ERROR("Invalid key %s", kfvKey(t).c_str());
-            it = consumer.m_toSync.erase(it);
-            continue;
-        }
-
         const vector<FieldValueTuple>& data = kfvFieldsValues(t);
         string vrf_name = "";
 
