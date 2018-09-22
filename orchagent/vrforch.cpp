@@ -79,8 +79,6 @@ bool VRFOrch::addOperation(const Request& request)
         }
 
         vrf_table_[vrf_name] = router_id;
-
-
         SWSS_LOG_NOTICE("VRF '%s' was added", vrf_name.c_str());
     }
     else
