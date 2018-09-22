@@ -123,7 +123,7 @@ void IntfsOrch::doTask(Consumer &consumer)
         }
 
         const vector<FieldValueTuple>& data = kfvFieldsValues(t);
-        string vrf_name = "";
+        string vrf_name = "", vnet_name = "";
 
         for (auto idx : data)
         {
@@ -132,6 +132,10 @@ void IntfsOrch::doTask(Consumer &consumer)
             if (field == "vrf_name")
             {
                 vrf_name = value;
+            }
+            else if (field == "vnet_name")
+            {
+                vnet_name = vrf_name = value;
             }
         }
 

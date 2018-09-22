@@ -70,6 +70,8 @@ bool OrchDaemon::init()
     gCrmOrch = new CrmOrch(m_configDb, CFG_CRM_TABLE_NAME);
     gPortsOrch = new PortsOrch(m_applDb, ports_tables);
     gFdbOrch = new FdbOrch(m_applDb, APP_FDB_TABLE_NAME, gPortsOrch);
+    VNetOrch *vnet_orch = new VNetOrch(m_applDb, APP_VNET_TABLE_NAME);
+    gDirectory.set(vnet_orch);
     VRFOrch *vrf_orch = new VRFOrch(m_applDb, APP_VRF_TABLE_NAME);
     gDirectory.set(vrf_orch);
 

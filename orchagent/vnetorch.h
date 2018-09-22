@@ -3,6 +3,8 @@
 
 #include <vector>
 #include <set>
+#include <unordered_map>
+#include <algorithm>
 
 #include "request_parser.h"
 
@@ -18,11 +20,14 @@ const request_description_t vnet_request_description = {
     { } // no mandatory attributes
 };
 
-enum class VR_TYPE{
+enum class VR_TYPE
+{
     ING_VR_VALID,
     EGR_VR_VALID,
     VR_INVALID
 };
+
+using vrid_list_t = map<VR_TYPE, sai_object_id_t>;
 
 class VNetRequest : public Request
 {
@@ -33,42 +38,50 @@ public:
 class VNetObject
 {
 public:
-    VNetObject(string vr_name, set<sai_object_id_t>& vr_ents, set<string>& p_list)
-              :vrf_name(vr_name)
+    VNetObject(vrid_list_t& vr_ents, set<string>& p_list)
     {
         peer_list = p_list;
         vr_ids = vr_ents;
     }
 
-    sai_object_id_t getVRFidIngress() const
+    sai_object_id_t getVRidIngress() const
     {
+        if (vr_ids.find(VR_TYPE::ING_VR_VALID) != vr_ids.end())
+        {
+            return vr_ids.at(VR_TYPE::ING_VR_VALID);
+        }
         return 0x0;
     }
 
-    sai_object_id_t getVRFidEgress() const
+    sai_object_id_t getVRidEgress() const
     {
+        if (vr_ids.find(VR_TYPE::EGR_VR_VALID) != vr_ids.end())
+        {
+            return vr_ids.at(VR_TYPE::EGR_VR_VALID);
+        }
         return 0x0;
     }
 
     set<sai_object_id_t> getVRids() const
     {
-        return vr_ids;
+        set<sai_object_id_t> ids;
+
+        for_each (vr_ids.begin(), vr_ids.end(), [&](std::pair<VR_TYPE, sai_object_id_t> element)
+        {
+            ids.insert(element.second);
+        });
+
+        return ids;
     }
 
-    string getVRFname() const
-    {
-        return vrf_name;
-    }
 
 private:
-    string vrf_name;
     set<string> peer_list = {};
-    set<sai_object_id_t> vr_ids = {};
+    vrid_list_t vr_ids;
 };
 
 using VNetObject_T = std::unique_ptr<VNetObject>;
 typedef std::unordered_map<std::string, VNetObject_T> VNetTable;
-typedef std::unordered_map<std::string, std::string> VRFMapTable;
 
 class VNetOrch : public Orch2
 {
@@ -83,14 +96,14 @@ public:
         return vnet_table_.find(name) != std::end(vnet_table_);
     }
 
-    sai_object_id_t getVRFidIngress(const std::string& name) const
+    sai_object_id_t getVRidIngress(const std::string& name) const
     {
-        return vnet_table_.at(name)->getVRFidIngress();
+        return vnet_table_.at(name)->getVRidIngress();
     }
 
-    sai_object_id_t getVRFidEgress(const std::string& name) const
+    sai_object_id_t getVRidEgress(const std::string& name) const
     {
-        return vnet_table_.at(name)->getVRFidEgress();
+        return vnet_table_.at(name)->getVRidEgress();
     }
 
     set<sai_object_id_t> getVRids(const std::string& name) const
@@ -98,22 +111,11 @@ public:
         return vnet_table_.at(name)->getVRids();
     }
 
-    bool isVRFMapexists(const std::string& name) const
-    {
-        return map_table_.find(name) != std::end(map_table_);
-    }
-
-    string getVnetName(const std::string& vrf) const
-    {
-        return map_table_.at(vrf);
-    }
-
 private:
     virtual bool addOperation(const Request& request);
     virtual bool delOperation(const Request& request);
 
     VNetTable vnet_table_;
-    VRFMapTable map_table_; //VRF to Vnet Map
     VNetRequest request_;
 
     std::vector<VR_TYPE> vr_cntxt;

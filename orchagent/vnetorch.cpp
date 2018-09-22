@@ -65,18 +65,18 @@ bool VNetOrch::addOperation(const Request& request)
         /*
          * Create ingress and egress VRF if required
          */
-        set<sai_object_id_t> vr_ent;
+        vrid_list_t vr_ent;
 
         for (auto vr_type : vr_cntxt)
         {
             sai_object_id_t router_id;
             if (vr_type != VR_TYPE::VR_INVALID && l_fn(router_id))
             {
-                vr_ent.insert(router_id);
+                vr_ent.insert(std::pair<VR_TYPE, sai_object_id_t>(vr_type, router_id));
             }
         }
 
-        VNetObject_T vnet_obj(new VNetObject(vnet_name, vr_ent, peer_list));
+        VNetObject_T vnet_obj(new VNetObject(vr_ent, peer_list));
         vnet_table_[vnet_name] = std::move(vnet_obj);
 
         SWSS_LOG_NOTICE("VNET '%s' was added ", vnet_name.c_str());

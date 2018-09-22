@@ -20,8 +20,6 @@ bool VRFOrch::addOperation(const Request& request)
 
     sai_attribute_t attr;
     vector<sai_attribute_t> attrs;
-    string vnet_name = "";
-    set<string> peer_list = {};
 
     for (const auto& name: request.getAttrFieldNames())
     {
@@ -56,14 +54,6 @@ bool VRFOrch::addOperation(const Request& request)
             attr.id = SAI_VIRTUAL_ROUTER_ATTR_UNKNOWN_L3_MULTICAST_PACKET_ACTION;
             attr.value.s32 = request.getAttrPacketAction("l3_mc_action");
         }
-        else if (name == "vnet_name")
-        {
-            vnet_name = request.getAttrString("vnet_name");
-        }
-        else if (name == "peer_list")
-        {
-            peer_list  = request.getAttrSet("peer_list");
-        }
         else
         {
             SWSS_LOG_ERROR("Logic error: Unknown attribute: %s", name.c_str());
@@ -90,29 +80,6 @@ bool VRFOrch::addOperation(const Request& request)
 
         vrf_table_[vrf_name] = router_id;
 
-        /*
-         * If VNET, then both ingress and egress VRF must be created
-         */
-
-        if (!vnet_name.empty())
-        {
-            sai_object_id_t e_router_id;
-            sai_status_t status = sai_virtual_router_api->create_virtual_router(&e_router_id,
-                                                                                gSwitchId,
-                                                                                static_cast<uint32_t>(attrs.size()),
-                                                                                attrs.data());
-            if (status != SAI_STATUS_SUCCESS)
-            {
-                SWSS_LOG_ERROR("Failed to create virtual router name: %s, rv: %d", vrf_name.c_str(), status);
-                return false;
-            }
-
-            VNetObject_T vnet_obj(new VNetObject(vrf_name, router_id, e_router_id, peer_list));
-            vnet_table_[vnet_name] = std::move(vnet_obj);
-
-            SWSS_LOG_NOTICE("VRF '%s' was added to Vnet '%s'", vrf_name.c_str(), vnet_name.c_str());
-
-        }
 
         SWSS_LOG_NOTICE("VRF '%s' was added", vrf_name.c_str());
     }
@@ -128,18 +95,6 @@ bool VRFOrch::addOperation(const Request& request)
             if (status != SAI_STATUS_SUCCESS)
             {
                 SWSS_LOG_ERROR("Failed to update virtual router attribute. vrf name: %s, rv: %d", vrf_name.c_str(), status);
-                return false;
-            }
-        }
-
-        if (isVRFMapexists(vrf_name))
-        {
-            auto vnet = getVnetName(vrf_name);
-            router_id = getVRFidEgress(vnet);
-            sai_status_t status = sai_virtual_router_api->set_virtual_router_attribute(router_id, &attr);
-            if (status != SAI_STATUS_SUCCESS)
-            {
-                SWSS_LOG_ERROR("Failed to update egress router attribute. vrf name: %s, rv: %d", vrf_name.c_str(), status);
                 return false;
             }
         }
@@ -167,21 +122,6 @@ bool VRFOrch::delOperation(const Request& request)
     {
         SWSS_LOG_ERROR("Failed to remove virtual router name: %s, rv:%d", vrf_name.c_str(), status);
         return false;
-    }
-
-    if (isVRFMapexists(vrf_name))
-    {
-        auto vnet = getVnetName(vrf_name);
-        router_id = getVRFidEgress(vnet);
-        sai_status_t status = sai_virtual_router_api->remove_virtual_router(router_id);
-        if (status != SAI_STATUS_SUCCESS)
-        {
-            SWSS_LOG_ERROR("Failed to remove virtual router name: %s, rv:%d", vnet.c_str(), status);
-            return false;
-        }
-
-        vnet_table_.erase(vnet);
-        map_table_.erase(vrf_name);
     }
 
     vrf_table_.erase(vrf_name);
