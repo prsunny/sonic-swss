@@ -7,38 +7,23 @@ class TestAcl(object):
     def get_acl_table_id(self, dvs, adb):
         atbl = swsscommon.Table(adb, "ASIC_STATE:SAI_OBJECT_TYPE_ACL_TABLE")
         keys = atbl.getKeys()
-        assert dvs.asicdb.default_acl_table in keys
-        acl_tables = [k for k in keys if k not in dvs.asicdb.default_acl_table]
+        for k in  dvs.asicdb.default_acl_tables:
+            assert k in keys
+        acl_tables = [k for k in keys if k not in dvs.asicdb.default_acl_tables]
 
-        assert len(acl_tables) >= 1
+        assert len(acl_tables) == 1
 
-	# Filter out DTel Acl tables
-	for k in acl_tables:
-	    (status, fvs) = atbl.get(k)
-	    for item in fvs:
-	        if item[0] == "SAI_ACL_TABLE_ATTR_ACL_BIND_POINT_TYPE_LIST":
-	            if 'SAI_ACL_BIND_POINT_TYPE_PORT' in item[1] or 'SAI_ACL_BIND_POINT_TYPE_LAG' in item[1]:
-	                return k
-	            else:
-	                break
-
-        return None
+        return acl_tables[0]
 
     def verify_if_any_acl_table_created(self, dvs, adb):
         atbl = swsscommon.Table(adb, "ASIC_STATE:SAI_OBJECT_TYPE_ACL_TABLE")
         keys = atbl.getKeys()
-        assert dvs.asicdb.default_acl_table in keys
-        acl_tables = [k for k in keys if k not in dvs.asicdb.default_acl_table]
+        for k in  dvs.asicdb.default_acl_tables:
+            assert k in keys
+        acl_tables = [k for k in keys if k not in dvs.asicdb.default_acl_tables]
 
-	# Filter out DTel Acl tables
-	for k in acl_tables:
-	    (status, fvs) = atbl.get(k)
-	    for item in fvs:
-	        if item[0] == "SAI_ACL_TABLE_ATTR_ACL_BIND_POINT_TYPE_LIST":
-	            if 'SAI_ACL_BIND_POINT_TYPE_PORT' in item[1] or 'SAI_ACL_BIND_POINT_TYPE_LAG' in item[1]:
-	                return True
-	            else:
-	                break
+        if len(acl_tables) != 0:
+            return True
 
         return False
 
@@ -158,6 +143,7 @@ class TestAcl(object):
 
         # check acl table in asic db
         test_acl_table_id = self.get_acl_table_id(dvs, adb)
+        assert test_acl_table_id
 
         # check acl table group in asic db
         self.verify_acl_group_num(adb, 2)
@@ -211,6 +197,66 @@ class TestAcl(object):
                 assert True
             elif fv[0] == "SAI_ACL_ENTRY_ATTR_FIELD_L4_SRC_PORT":
                 assert fv[1] == "65000&mask:0xffff"
+            elif fv[0] == "SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION":
+                assert fv[1] == "SAI_PACKET_ACTION_FORWARD"
+            else:
+                assert False
+
+        # remove acl rule
+        tbl._del("test|acl_test_rule")
+
+        time.sleep(1)
+
+        (status, fvs) = atbl.get(acl_entry[0])
+        assert status == False
+
+    def test_AclRuleInOutPorts(self, dvs):
+        """
+        hmset ACL_RULE|test|acl_test_rule priority 55 PACKET_ACTION FORWARD IN_PORTS Ethernet0,Ethernet4 OUT_PORTS Ethernet8,Ethernet12
+        """
+
+        db = swsscommon.DBConnector(4, dvs.redis_sock, 0)
+        adb = swsscommon.DBConnector(1, dvs.redis_sock, 0)
+
+        # create acl rule
+        tbl = swsscommon.Table(db, "ACL_RULE")
+        fvs = swsscommon.FieldValuePairs([("priority", "55"),
+                                          ("PACKET_ACTION", "FORWARD"),
+                                          ("IN_PORTS", "Ethernet0,Ethernet4"),
+                                          ("OUT_PORTS", "Ethernet8,Ethernet12")])
+        tbl.set("test|acl_test_rule", fvs)
+
+        time.sleep(1)
+
+        test_acl_table_id = self.get_acl_table_id(dvs, adb)
+
+        # check acl table in asic db
+        atbl = swsscommon.Table(adb, "ASIC_STATE:SAI_OBJECT_TYPE_ACL_ENTRY")
+        keys = atbl.getKeys()
+
+        acl_entry = [k for k in keys if k not in dvs.asicdb.default_acl_entries]
+        assert len(acl_entry) == 1
+
+        (status, fvs) = atbl.get(acl_entry[0])
+        assert status == True
+        assert len(fvs) == 7
+        for fv in fvs:
+            if fv[0] == "SAI_ACL_ENTRY_ATTR_TABLE_ID":
+                assert fv[1] == test_acl_table_id
+            elif fv[0] == "SAI_ACL_ENTRY_ATTR_ADMIN_STATE":
+                assert fv[1] == "true"
+            elif fv[0] == "SAI_ACL_ENTRY_ATTR_PRIORITY":
+                assert fv[1] == "55"
+            elif fv[0] == "SAI_ACL_ENTRY_ATTR_ACTION_COUNTER":
+                assert True
+            elif fv[0] == "SAI_ACL_ENTRY_ATTR_FIELD_IN_PORTS":
+                assert fv[1].startswith("2:")
+                assert dvs.asicdb.portnamemap["Ethernet0"] in fv[1]
+                assert dvs.asicdb.portnamemap["Ethernet4"] in fv[1]
+            elif fv[0] == "SAI_ACL_ENTRY_ATTR_FIELD_OUT_PORTS":
+                assert fv[1].startswith("2:")
+                assert dvs.asicdb.portnamemap["Ethernet8"] in fv[1]
+                assert dvs.asicdb.portnamemap["Ethernet12"] in fv[1]
             elif fv[0] == "SAI_ACL_ENTRY_ATTR_ACTION_PACKET_ACTION":
                 assert fv[1] == "SAI_PACKET_ACTION_FORWARD"
             else:

@@ -9,6 +9,7 @@
 #include "logger.h"
 #include "swssnet.h"
 #include "tokenize.h"
+#include "routeorch.h"
 #include "crmorch.h"
 #include "bufferorch.h"
 
@@ -18,8 +19,9 @@ extern sai_router_interface_api_t*  sai_router_intfs_api;
 extern sai_route_api_t*             sai_route_api;
 extern sai_neighbor_api_t*          sai_neighbor_api;
 
-extern PortsOrch *gPortsOrch;
 extern sai_object_id_t gSwitchId;
+extern PortsOrch *gPortsOrch;
+extern RouteOrch *gRouteOrch;
 extern CrmOrch *gCrmOrch;
 extern BufferOrch *gBufferOrch;
 
@@ -55,6 +57,44 @@ void IntfsOrch::decreaseRouterIntfsRefCount(const string &alias)
     m_syncdIntfses[alias].ref_count--;
     SWSS_LOG_DEBUG("Router interface %s ref count is decreased to %d",
                   alias.c_str(), m_syncdIntfses[alias].ref_count);
+}
+
+bool IntfsOrch::setRouterIntfsMtu(Port &port)
+{
+    SWSS_LOG_ENTER();
+
+    sai_attribute_t attr;
+    attr.id = SAI_ROUTER_INTERFACE_ATTR_MTU;
+    attr.value.u32 = port.m_mtu;
+
+    sai_status_t status = sai_router_intfs_api->
+            set_router_interface_attribute(port.m_rif_id, &attr);
+    if (status != SAI_STATUS_SUCCESS)
+    {
+        SWSS_LOG_ERROR("Failed to set router interface %s MTU to %u, rv:%d",
+                port.m_alias.c_str(), port.m_mtu, status);
+        return false;
+    }
+    SWSS_LOG_NOTICE("Set router interface %s MTU to %u",
+            port.m_alias.c_str(), port.m_mtu);
+    return true;
+}
+
+set<IpPrefix> IntfsOrch:: getSubnetRoutes()
+{
+    SWSS_LOG_ENTER();
+
+    set<IpPrefix> subnet_routes;
+
+    for (auto it = m_syncdIntfses.begin(); it != m_syncdIntfses.end(); it++)
+    {
+        for (auto prefix : it->second.ip_addresses)
+        {
+            subnet_routes.emplace(prefix);
+        }
+    }
+
+    return subnet_routes;
 }
 
 void IntfsOrch::doTask(Consumer &consumer)
@@ -159,7 +199,8 @@ void IntfsOrch::doTask(Consumer &consumer)
 
             addSubnetRoute(port, ip_prefix);
             addIp2MeRoute(ip_prefix);
-            if(port.m_type == Port::VLAN && ip_prefix.isV4())
+
+            if (port.m_type == Port::VLAN && ip_prefix.isV4())
             {
                 addDirectedBroadcast(port, ip_prefix.getBroadcastIp());
             }
@@ -288,13 +329,14 @@ bool IntfsOrch::addRouterIntfs(Port &port)
     sai_status_t status = sai_router_intfs_api->create_router_interface(&port.m_rif_id, gSwitchId, (uint32_t)attrs.size(), attrs.data());
     if (status != SAI_STATUS_SUCCESS)
     {
-        SWSS_LOG_ERROR("Failed to create router interface for port %s, rv:%d", port.m_alias.c_str(), status);
+        SWSS_LOG_ERROR("Failed to create router interface %s, rv:%d",
+                port.m_alias.c_str(), status);
         throw runtime_error("Failed to create router interface.");
     }
 
     gPortsOrch->setPort(port.m_alias, port);
 
-    SWSS_LOG_NOTICE("Create router interface for port %s mtu %u", port.m_alias.c_str(), port.m_mtu);
+    SWSS_LOG_NOTICE("Create router interface %s MTU %u", port.m_alias.c_str(), port.m_mtu);
 
     return true;
 }
@@ -363,6 +405,8 @@ void IntfsOrch::addSubnetRoute(const Port &port, const IpPrefix &ip_prefix)
     {
         gCrmOrch->incCrmResUsedCounter(CrmResourceType::CRM_IPV6_ROUTE);
     }
+
+    gRouteOrch->notifyNextHopChangeObservers(ip_prefix, IpAddresses(), true);
 }
 
 void IntfsOrch::removeSubnetRoute(const Port &port, const IpPrefix &ip_prefix)
@@ -393,6 +437,8 @@ void IntfsOrch::removeSubnetRoute(const Port &port, const IpPrefix &ip_prefix)
     {
         gCrmOrch->decCrmResUsedCounter(CrmResourceType::CRM_IPV6_ROUTE);
     }
+
+    gRouteOrch->notifyNextHopChangeObservers(ip_prefix, IpAddresses(), false);
 }
 
 void IntfsOrch::addIp2MeRoute(const IpPrefix &ip_prefix)

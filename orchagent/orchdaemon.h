@@ -21,8 +21,10 @@
 #include "switchorch.h"
 #include "crmorch.h"
 #include "vrforch.h"
+#include "vxlanorch.h"
 #include "countercheckorch.h"
 #include "flexcounterorch.h"
+#include "directory.h"
 
 using namespace swss;
 
@@ -34,6 +36,11 @@ public:
 
     bool init();
     void start();
+    bool warmRestoreAndSyncUp();
+    void getTaskToSync(vector<string> &ts);
+    bool warmRestoreValidation();
+
+    bool warmRestartCheck();
 private:
     DBConnector *m_applDb;
     DBConnector *m_configDb;

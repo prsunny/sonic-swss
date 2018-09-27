@@ -31,6 +31,9 @@ public:
 
     void increaseRouterIntfsRefCount(const string&);
     void decreaseRouterIntfsRefCount(const string&);
+
+    bool setRouterIntfsMtu(Port &port);
+    std::set<IpPrefix> getSubnetRoutes();
 private:
     IntfsTable m_syncdIntfses;
     void doTask(Consumer &consumer);

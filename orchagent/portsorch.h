@@ -56,7 +56,10 @@ public:
     bool isInitDone();
 
     map<string, Port>& getAllPorts();
+    bool bake() override;
+    void cleanPortTable(const vector<string>& keys);
     bool getBridgePort(sai_object_id_t id, Port &port);
+    bool setBridgePortLearningFDB(Port &port, sai_bridge_port_fdb_learning_mode_t mode);
     bool getPort(string alias, Port &port);
     bool getPort(sai_object_id_t id, Port &port);
     bool getPortByBridgePortId(sai_object_id_t bridge_port_id, Port &port);
@@ -69,7 +72,11 @@ public:
     void updateDbPortOperStatus(sai_object_id_t id, sai_port_oper_status_t status);
     bool bindAclTable(sai_object_id_t id, sai_object_id_t table_oid, sai_object_id_t &group_member_oid, acl_stage_type_t acl_stage = ACL_STAGE_INGRESS);
 
+    bool getPortPfc(sai_object_id_t portId, uint8_t *pfc_bitmask);
+    bool setPortPfc(sai_object_id_t portId, uint8_t pfc_bitmask);
+
     void generateQueueMap();
+    void refreshPortStatus();
 private:
     unique_ptr<Table> m_counterTable;
     unique_ptr<Table> m_portTable;
@@ -144,6 +151,7 @@ private:
     bool setPortPvid (Port &port, sai_uint32_t pvid);
     bool getPortPvid(Port &port, sai_uint32_t &pvid);
     bool setPortFec(sai_object_id_t id, sai_port_fec_mode_t mode);
+    bool setPortPfcAsym(Port &port, string pfc_asym);
 
     bool setBridgePortAdminStatus(sai_object_id_t id, bool up);
 
@@ -160,6 +168,8 @@ private:
 
     bool setPortAutoNeg(sai_object_id_t id, int an);
     bool setPortFecMode(sai_object_id_t id, int fec);
+
+    void updatePortOperStatus(Port &port, sai_port_oper_status_t status);
 };
 #endif /* SWSS_PORTSORCH_H */
 
