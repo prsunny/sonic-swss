@@ -14,36 +14,8 @@
 extern sai_virtual_router_api_t* sai_virtual_router_api;
 extern sai_object_id_t gSwitchId;
 
-
-bool VNetOrch::addOperation(const Request& request)
+bool VNetOrch::addOpVrf(const string&  vnet_name, set<string>& peer_list, vector<sai_attribute_t>& attrs)
 {
-    SWSS_LOG_ENTER();
-
-    sai_attribute_t attr;
-    vector<sai_attribute_t> attrs;
-    set<string> peer_list = {};
-
-    for (const auto& name: request.getAttrFieldNames())
-    {
-        if (name == "src_mac")
-        {
-            const auto& mac = request.getAttrMacAddress("src_mac");
-            attr.id = SAI_VIRTUAL_ROUTER_ATTR_SRC_MAC_ADDRESS;
-            memcpy(attr.value.mac, mac.getMac(), sizeof(sai_mac_t));
-        }
-        else if (name == "peer_list")
-        {
-            peer_list  = request.getAttrSet("peer_list");
-        }
-        else
-        {
-            SWSS_LOG_ERROR("Logic error: Unknown attribute: %s", name.c_str());
-            continue;
-        }
-        attrs.push_back(attr);
-    }
-
-    const std::string& vnet_name = request.getKeyString(0);
     auto it = vnet_table_.find(vnet_name);
     if (it == std::end(vnet_table_))
     {
@@ -76,17 +48,18 @@ bool VNetOrch::addOperation(const Request& request)
             }
         }
 
-        VNetObject_T vnet_obj(new VNetObject(vr_ent, peer_list));
+        VNetObject_T vnet_obj(new VNetVrfObject(vr_ent, peer_list));
         vnet_table_[vnet_name] = std::move(vnet_obj);
 
-        SWSS_LOG_NOTICE("VNET '%s' was added ", vnet_name.c_str());
-
+        SWSS_LOG_NOTICE("VNET '%s' (VRFs) created ", vnet_name.c_str());
+        return true;
     }
     else
     {
         // Update an existing vrfs
 
-        set<sai_object_id_t> vr_ent = getVRids(vnet_name);
+        VNetVrfObject *ptr = getVRptr(vnet_name);
+        set<sai_object_id_t> vr_ent = ptr->getVRids();
 
         for (const auto& attr: attrs)
         {
@@ -103,6 +76,66 @@ bool VNetOrch::addOperation(const Request& request)
         }
 
         SWSS_LOG_NOTICE("VNET '%s' was updated", vnet_name.c_str());
+        return true;
+    }
+}
+
+bool VNetOrch::delOpVrf(const string& vnet_name)
+{
+    if (vnet_table_.find(vnet_name) == std::end(vnet_table_))
+    {
+        SWSS_LOG_ERROR("VNET '%s' doesn't exist", vnet_name.c_str());
+        return true;
+    }
+
+    VNetVrfObject *ptr = getVRptr(vnet_name);
+    set<sai_object_id_t> vr_ent = ptr->getVRids();
+    for (auto it : vr_ent)
+    {
+        sai_status_t status = sai_virtual_router_api->remove_virtual_router(it);
+        if (status != SAI_STATUS_SUCCESS)
+        {
+            SWSS_LOG_ERROR("Failed to remove virtual router name: %s, rv:%d", vnet_name.c_str(), status);
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool VNetOrch::addOperation(const Request& request)
+{
+    SWSS_LOG_ENTER();
+
+    sai_attribute_t attr;
+    vector<sai_attribute_t> attrs;
+    set<string> peer_list = {};
+
+    for (const auto& name: request.getAttrFieldNames())
+    {
+        if (name == "src_mac")
+        {
+            const auto& mac = request.getAttrMacAddress("src_mac");
+            attr.id = SAI_VIRTUAL_ROUTER_ATTR_SRC_MAC_ADDRESS;
+            memcpy(attr.value.mac, mac.getMac(), sizeof(sai_mac_t));
+        }
+        else if (name == "peer_list")
+        {
+            peer_list  = request.getAttrSet("peer_list");
+        }
+        else
+        {
+            SWSS_LOG_ERROR("Logic error: Unknown attribute: %s", name.c_str());
+            continue;
+        }
+        attrs.push_back(attr);
+    }
+
+    const std::string& vnet_name = request.getKeyString(0);
+
+    if (isVnetExecVrf() && addOpVrf(vnet_name, peer_list, attrs))
+    {
+        SWSS_LOG_NOTICE("VNET '%s' was added ", vnet_name.c_str());
     }
 
     return true;
@@ -113,25 +146,11 @@ bool VNetOrch::delOperation(const Request& request)
     SWSS_LOG_ENTER();
 
     const std::string& vnet_name = request.getKeyString(0);
-    if (vnet_table_.find(vnet_name) == std::end(vnet_table_))
+
+    if (isVnetExecVrf() && delOpVrf(vnet_name))
     {
-        SWSS_LOG_ERROR("VNET '%s' doesn't exist", vnet_name.c_str());
-        return true;
+        SWSS_LOG_NOTICE("VNET '%s' was removed", vnet_name.c_str());
     }
-
-    set<sai_object_id_t> vr_ent = getVRids(vnet_name);
-    for (auto it : vr_ent)
-    {
-        sai_status_t status = sai_virtual_router_api->remove_virtual_router(it);
-        if (status != SAI_STATUS_SUCCESS)
-        {
-            SWSS_LOG_ERROR("Failed to remove virtual router name: %s, rv:%d", vnet_name.c_str(), status);
-            return false;
-        }
-
-    }
-
-    SWSS_LOG_NOTICE("VNET '%s' was removed", vnet_name.c_str());
 
     return true;
 }
