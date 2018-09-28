@@ -69,7 +69,10 @@ bool OrchDaemon::init()
 
     gCrmOrch = new CrmOrch(m_configDb, CFG_CRM_TABLE_NAME);
     gPortsOrch = new PortsOrch(m_applDb, ports_tables);
-    gFdbOrch = new FdbOrch(m_applDb, APP_FDB_TABLE_NAME, gPortsOrch);
+    TableConnector applDbFdb(m_applDb, APP_FDB_TABLE_NAME);
+    TableConnector stateDbFdb(m_stateDb, STATE_FDB_TABLE_NAME);
+    gFdbOrch = new FdbOrch(applDbFdb, stateDbFdb, gPortsOrch);
+
     VNetOrch *vnet_orch = new VNetOrch(m_applDb, APP_VNET_TABLE_NAME);
     gDirectory.set(vnet_orch);
     VRFOrch *vrf_orch = new VRFOrch(m_applDb, APP_VRF_TABLE_NAME);
@@ -363,6 +366,14 @@ void OrchDaemon::start()
                 // Should sleep here or continue handling timers and etc.??
                 if (!gSwitchOrch->checkRestartNoFreeze())
                 {
+                    // Disable FDB learning on all bridge ports
+                    for (auto& pair: gPortsOrch->getAllPorts())
+                    {
+                        auto& port = pair.second;
+                        gPortsOrch->setBridgePortLearningFDB(port, SAI_BRIDGE_PORT_FDB_LEARNING_MODE_DISABLE);
+                    }
+                    flush();
+
                     SWSS_LOG_WARN("Orchagent is frozen for warm restart!");
                     sleep(UINT_MAX);
                 }
@@ -377,7 +388,7 @@ void OrchDaemon::start()
  */
 bool OrchDaemon::warmRestoreAndSyncUp()
 {
-    WarmStart::setWarmStartState("orchagent", WarmStart::INIT);
+    WarmStart::setWarmStartState("orchagent", WarmStart::INITIALIZED);
 
     for (Orch *o : m_orchList)
     {
@@ -458,7 +469,7 @@ bool OrchDaemon::warmRestoreValidation()
         }
     }
     WarmStart::setWarmStartState("orchagent", WarmStart::RESTORED);
-    return true;
+    return ts.empty();
 }
 
 /*
