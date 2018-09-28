@@ -35,6 +35,7 @@ enum class VR_TYPE
 };
 
 using vrid_list_t = map<VR_TYPE, sai_object_id_t>;
+extern std::vector<VR_TYPE> vr_cntxt;
 
 class VNetRequest : public Request
 {
@@ -54,6 +55,13 @@ public:
 
     virtual sai_object_id_t getDecapMapId() const = 0;
 
+    virtual bool updateObj(vector<sai_attribute_t>&) = 0;
+
+    void setPeerList(set<string>& p_list)
+    {
+        peer_list = p_list;
+    }
+
     virtual ~VNetObject() {};
 
 private:
@@ -63,9 +71,11 @@ private:
 class VNetVrfObject : public VNetObject
 {
 public:
-    VNetVrfObject(vrid_list_t& vr_ents, set<string>& p_list) : VNetObject(p_list)
+    VNetVrfObject(const std::string& name, set<string>& p_list, vector<sai_attribute_t>& attrs)
+                 : VNetObject(p_list)
     {
-        vr_ids = vr_ents;
+        vnet_name = name;
+        createObj(attrs);
     }
 
     sai_object_id_t getVRidIngress() const
@@ -108,7 +118,14 @@ public:
         return getVRidEgress();
     }
 
+    bool createObj(vector<sai_attribute_t>&);
+
+    bool updateObj(vector<sai_attribute_t>&);
+
+    ~VNetVrfObject();
+
 private:
+    string vnet_name;
     vrid_list_t vr_ids;
 };
 
@@ -129,7 +146,7 @@ public:
         }
         else
         {
-            //BRIDGE Implementation
+            // BRIDGE Handling
         }
     }
 
@@ -138,9 +155,10 @@ public:
         return vnet_table_.find(name) != std::end(vnet_table_);
     }
 
-    VNetVrfObject* getVRptr(const std::string& name) const
+    template <class T>
+    T* getTypePtr(const std::string& name) const
     {
-        return static_cast<VNetVrfObject *>(vnet_table_.at(name).get());
+        return static_cast<T *>(vnet_table_.at(name).get());
     }
 
     sai_object_id_t getEncapMapId(const std::string& name) const
@@ -167,15 +185,13 @@ private:
     virtual bool addOperation(const Request& request);
     virtual bool delOperation(const Request& request);
 
-    bool addOpVrf(const string&, set<string>&, vector<sai_attribute_t>&);
-    bool delOpVrf(const string& vnet_name);
-
+    template <class T>
+    std::unique_ptr<T> createObject(const string&, set<string>&, vector<sai_attribute_t>&);
 
     VNetTable vnet_table_;
     VNetRequest request_;
     VNET_EXEC vnet_exec_;
 
-    std::vector<VR_TYPE> vr_cntxt;
 };
 
 #endif // __VNETORCH_H
