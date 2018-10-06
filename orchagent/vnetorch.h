@@ -62,6 +62,11 @@ public:
         peer_list = p_list;
     }
 
+    const set<string>& getPeerList() const
+    {
+        return peer_list;
+    }
+
     virtual ~VNetObject() {};
 
 private:
@@ -171,6 +176,11 @@ public:
         return vnet_table_.at(name)->getDecapMapId();
     }
 
+    const set<string>& getPeerList(const std::string& name) const
+    {
+        return vnet_table_.at(name)->getPeerList();
+    }
+
     bool isVnetExecVrf() const
     {
         return (vnet_exec_ == VNET_EXEC::VNET_EXEC_VRF);
@@ -192,6 +202,52 @@ private:
     VNetRequest request_;
     VNET_EXEC vnet_exec_;
 
+};
+
+const request_description_t vnet_route_description = {
+    { REQ_T_STRING, REQ_T_IP_PREFIX },
+    {
+        { "endpoint",   REQ_T_IP },
+        { "ifname",     REQ_T_STRING },
+    },
+    { }
+};
+
+class VNetRouteRequest : public Request
+{
+public:
+    VNetRouteRequest() : Request(vnet_route_description, ':') { }
+};
+
+using NextHopMap = map<IpAddress, sai_object_id_t>;
+using NextHopTunnels = map<string, NextHopMap>;
+
+class VNetRouteOrch : public Orch2
+{
+public:
+    VNetRouteOrch(DBConnector *db, vector<string> &tableNames, VNetOrch *);
+    using handler_pair = pair<string, void (VNetRouteOrch::*) (const Request& )>;
+    using handler_map = map<string, void (VNetRouteOrch::*) (const Request& )>;
+
+private:
+    virtual bool addOperation(const Request& request);
+    virtual bool delOperation(const Request& request);
+
+    void handleRoutes(const Request&);
+    void handleTunnel(const Request&);
+
+    template<typename T>
+    bool doRouteTask(const string& vnet, IpPrefix& ipPrefix, IpAddress& ipAddr);
+
+    template<typename T>
+    bool doRouteTask(const string& vnet, IpPrefix& ipPrefix, string& ifname);
+
+    sai_object_id_t getNextHop(const string& vnet, IpAddress& ipAddr);
+
+    VNetOrch *vnet_orch_;
+    VNetRouteRequest request_;
+    handler_map handler_map_;
+    NextHopTunnels nh_tunnels_;
 };
 
 #endif // __VNETORCH_H
