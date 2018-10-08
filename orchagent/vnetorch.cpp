@@ -23,6 +23,43 @@ extern PortsOrch *gPortsOrch;
  */
 std::vector<VR_TYPE> vr_cntxt;
 
+VNetVrfObject::VNetVrfObject(const std::string& name, set<string>& p_list, vector<sai_attribute_t>& attrs)
+             : VNetObject(p_list)
+{
+    vnet_name_ = name;
+    createObj(attrs);
+}
+
+sai_object_id_t VNetVrfObject::getVRidIngress() const
+{
+    if (vr_ids_.find(VR_TYPE::ING_VR_VALID) != vr_ids_.end())
+    {
+        return vr_ids_.at(VR_TYPE::ING_VR_VALID);
+    }
+    return SAI_NULL_OBJECT_ID;
+}
+
+sai_object_id_t VNetVrfObject::getVRidEgress() const
+{
+    if (vr_ids_.find(VR_TYPE::EGR_VR_VALID) != vr_ids_.end())
+    {
+        return vr_ids_.at(VR_TYPE::EGR_VR_VALID);
+    }
+    return SAI_NULL_OBJECT_ID;
+}
+
+set<sai_object_id_t> VNetVrfObject::getVRids() const
+{
+    set<sai_object_id_t> ids;
+
+    for_each (vr_ids_.begin(), vr_ids_.end(), [&](std::pair<VR_TYPE, sai_object_id_t> element)
+    {
+        ids.insert(element.second);
+    });
+
+    return ids;
+}
+
 bool VNetVrfObject::createObj(vector<sai_attribute_t>& attrs)
 {
     auto l_fn = [&] (sai_object_id_t& router_id) {
@@ -34,7 +71,7 @@ bool VNetVrfObject::createObj(vector<sai_attribute_t>& attrs)
         if (status != SAI_STATUS_SUCCESS)
         {
             SWSS_LOG_ERROR("Failed to create virtual router name: %s, rv: %d",
-                           vnet_name.c_str(), status);
+                           vnet_name_.c_str(), status);
             throw std::runtime_error("Failed to create VR object");
         }
         return true;
@@ -49,11 +86,11 @@ bool VNetVrfObject::createObj(vector<sai_attribute_t>& attrs)
         sai_object_id_t router_id;
         if (vr_type != VR_TYPE::VR_INVALID && l_fn(router_id))
         {
-            vr_ids.insert(std::pair<VR_TYPE, sai_object_id_t>(vr_type, router_id));
+            vr_ids_.insert(std::pair<VR_TYPE, sai_object_id_t>(vr_type, router_id));
         }
     }
 
-    SWSS_LOG_INFO("VNET '%s' router object created ", vnet_name.c_str());
+    SWSS_LOG_INFO("VNET '%s' router object created ", vnet_name_.c_str());
     return true;
 }
 
@@ -69,13 +106,13 @@ bool VNetVrfObject::updateObj(vector<sai_attribute_t>& attrs)
             if (status != SAI_STATUS_SUCCESS)
             {
                 SWSS_LOG_ERROR("Failed to update virtual router attribute. VNET name: %s, rv: %d",
-                                vnet_name.c_str(), status);
+                                vnet_name_.c_str(), status);
                 return false;
             }
         }
     }
 
-    SWSS_LOG_INFO("VNET '%s' was updated", vnet_name.c_str());
+    SWSS_LOG_INFO("VNET '%s' was updated", vnet_name_.c_str());
     return true;
 }
 
@@ -88,11 +125,11 @@ VNetVrfObject::~VNetVrfObject()
         if (status != SAI_STATUS_SUCCESS)
         {
             SWSS_LOG_ERROR("Failed to remove virtual router name: %s, rv:%d",
-                            vnet_name.c_str(), status);
+                            vnet_name_.c_str(), status);
         }
     }
 
-    SWSS_LOG_INFO("VNET '%s' deleted ", vnet_name.c_str());
+    SWSS_LOG_INFO("VNET '%s' deleted ", vnet_name_.c_str());
 }
 
 /*
@@ -105,6 +142,21 @@ std::unique_ptr<T> VNetOrch::createObject(const string& vnet_name, set<string>& 
 {
     std::unique_ptr<T> vnet_obj(new T(vnet_name, plist, attrs));
     return vnet_obj;
+}
+
+VNetOrch::VNetOrch(DBConnector *db, const std::string& tableName, VNET_EXEC op)
+         : Orch2(db, tableName, request_)
+{
+    vnet_exec_ = op;
+
+    if (op == VNET_EXEC::VNET_EXEC_VRF)
+    {
+        vr_cntxt = { VR_TYPE::ING_VR_VALID, VR_TYPE::EGR_VR_VALID };
+    }
+    else
+    {
+        // BRIDGE Handling
+    }
 }
 
 bool VNetOrch::addOperation(const Request& request)
@@ -123,6 +175,7 @@ bool VNetOrch::addOperation(const Request& request)
             const auto& mac = request.getAttrMacAddress("src_mac");
             attr.id = SAI_VIRTUAL_ROUTER_ATTR_SRC_MAC_ADDRESS;
             memcpy(attr.value.mac, mac.getMac(), sizeof(sai_mac_t));
+            attrs.push_back(attr);
         }
         else if (name == "peer_list")
         {
@@ -131,10 +184,9 @@ bool VNetOrch::addOperation(const Request& request)
         }
         else
         {
-            SWSS_LOG_ERROR("Logic error: Unknown attribute: %s", name.c_str());
+            SWSS_LOG_WARN("Logic error: Unknown attribute: %s", name.c_str());
             continue;
         }
-        attrs.push_back(attr);
     }
 
     const std::string& vnet_name = request.getKeyString(0);
@@ -151,7 +203,7 @@ bool VNetOrch::addOperation(const Request& request)
                 obj = createObject<VNetVrfObject>(vnet_name, peer_list, attrs);
                 create = true;
             }
-            SWSS_LOG_NOTICE("VNET '%s' was added ", vnet_name.c_str());
+            SWSS_LOG_INFO("VNET '%s' was added ", vnet_name.c_str());
         }
         else
         {
@@ -177,7 +229,7 @@ bool VNetOrch::addOperation(const Request& request)
     }
     catch(std::runtime_error& _)
     {
-        SWSS_LOG_ERROR("VNet add operation error for %s: error %s ", vnet_name.c_str(), _.what());
+        SWSS_LOG_ERROR("VNET add operation error for %s: error %s ", vnet_name.c_str(), _.what());
         return false;
     }
 
@@ -193,13 +245,13 @@ bool VNetOrch::delOperation(const Request& request)
 
     if (vnet_table_.find(vnet_name) == std::end(vnet_table_))
     {
-        SWSS_LOG_ERROR("VNET '%s' doesn't exist", vnet_name.c_str());
+        SWSS_LOG_WARN("VNET '%s' doesn't exist", vnet_name.c_str());
         return true;
     }
 
     vnet_table_.erase(vnet_name);
 
-    SWSS_LOG_NOTICE("VNET '%s' del request", vnet_name.c_str());
+    SWSS_LOG_INFO("VNET '%s' del request", vnet_name.c_str());
     return true;
 }
 
@@ -264,9 +316,9 @@ bool VNetRouteOrch::doRouteTask<VNetVrfObject>(const string& vnet, IpPrefix& ipP
 {
     SWSS_LOG_ENTER();
 
-    if (!vnet_orch_->isVnetexists(vnet))
+    if (!vnet_orch_->isVnetExists(vnet))
     {
-        SWSS_LOG_ERROR("Vnet %s doesn't exist", vnet.c_str());
+        SWSS_LOG_WARN("VNET %s doesn't exist", vnet.c_str());
         return false;
     }
 
@@ -305,16 +357,16 @@ bool VNetRouteOrch::doRouteTask<VNetVrfObject>(const string& vnet, IpPrefix& ipP
 {
     SWSS_LOG_ENTER();
 
-    if (!vnet_orch_->isVnetexists(vnet))
+    if (!vnet_orch_->isVnetExists(vnet))
     {
-        SWSS_LOG_ERROR("Vnet %s doesn't exist", vnet.c_str());
+        SWSS_LOG_WARN("VNET %s doesn't exist", vnet.c_str());
         return false;
     }
 
     Port p;
     if (!gPortsOrch->getPort(ifname, p) || (p.m_rif_id == SAI_NULL_OBJECT_ID))
     {
-        SWSS_LOG_ERROR("Port/RIF %s doesn't exist", ifname.c_str());
+        SWSS_LOG_WARN("Port/RIF %s doesn't exist", ifname.c_str());
         return false;
     }
 
@@ -363,7 +415,7 @@ void VNetRouteOrch::handleRoutes(const Request& request)
         }
         else
         {
-            SWSS_LOG_ERROR("Logic error: Unknown attribute: %s", name.c_str());
+            SWSS_LOG_WARN("Logic error: Unknown attribute: %s", name.c_str());
             return;
         }
     }
@@ -396,7 +448,7 @@ void VNetRouteOrch::handleTunnel(const Request& request)
         }
         else
         {
-            SWSS_LOG_ERROR("Logic error: Unknown attribute: %s", name.c_str());
+            SWSS_LOG_WARN("Logic error: Unknown attribute: %s", name.c_str());
             return;
         }
     }
@@ -432,7 +484,7 @@ bool VNetRouteOrch::addOperation(const Request& request)
     }
     catch(std::runtime_error& _)
     {
-        SWSS_LOG_ERROR("VNet add operation error %s ", _.what());
+        SWSS_LOG_ERROR("VNET add operation error %s ", _.what());
         return false;
     }
 

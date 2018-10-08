@@ -48,7 +48,7 @@ class VNetObject
 public:
     VNetObject(set<string>& p_list)
     {
-        peer_list = p_list;
+        peer_list_ = p_list;
     }
 
     virtual sai_object_id_t getEncapMapId() const = 0;
@@ -59,59 +59,30 @@ public:
 
     void setPeerList(set<string>& p_list)
     {
-        peer_list = p_list;
+        peer_list_ = p_list;
     }
 
     const set<string>& getPeerList() const
     {
-        return peer_list;
+        return peer_list_;
     }
 
     virtual ~VNetObject() {};
 
 private:
-    set<string> peer_list = {};
+    set<string> peer_list_ = {};
 };
 
 class VNetVrfObject : public VNetObject
 {
 public:
-    VNetVrfObject(const std::string& name, set<string>& p_list, vector<sai_attribute_t>& attrs)
-                 : VNetObject(p_list)
-    {
-        vnet_name = name;
-        createObj(attrs);
-    }
+    VNetVrfObject(const std::string& name, set<string>& p_list, vector<sai_attribute_t>& attrs);
 
-    sai_object_id_t getVRidIngress() const
-    {
-        if (vr_ids.find(VR_TYPE::ING_VR_VALID) != vr_ids.end())
-        {
-            return vr_ids.at(VR_TYPE::ING_VR_VALID);
-        }
-        return 0x0;
-    }
+    sai_object_id_t getVRidIngress() const;
 
-    sai_object_id_t getVRidEgress() const
-    {
-        if (vr_ids.find(VR_TYPE::EGR_VR_VALID) != vr_ids.end())
-        {
-            return vr_ids.at(VR_TYPE::EGR_VR_VALID);
-        }
-        return 0x0;
-    }
+    sai_object_id_t getVRidEgress() const;
 
-    set<sai_object_id_t> getVRids() const
-    {
-        set<sai_object_id_t> ids;
-
-        for_each (vr_ids.begin(), vr_ids.end(), [&](std::pair<VR_TYPE, sai_object_id_t> element)
-        {
-            ids.insert(element.second);
-        });
-
-        return ids;
-    }
+    set<sai_object_id_t> getVRids() const;
 
     virtual sai_object_id_t getEncapMapId() const
     {
@@ -130,8 +101,8 @@ public:
     ~VNetVrfObject();
 
 private:
-    string vnet_name;
-    vrid_list_t vr_ids;
+    string vnet_name_;
+    vrid_list_t vr_ids_;
 };
 
 using VNetObject_T = std::unique_ptr<VNetObject>;
@@ -140,22 +111,9 @@ typedef std::unordered_map<std::string, VNetObject_T> VNetTable;
 class VNetOrch : public Orch2
 {
 public:
-    VNetOrch(DBConnector *db, const std::string& tableName, VNET_EXEC op = VNET_EXEC::VNET_EXEC_VRF)
-             : Orch2(db, tableName, request_)
-    {
-        vnet_exec_ = op;
+    VNetOrch(DBConnector *db, const std::string&, VNET_EXEC op = VNET_EXEC::VNET_EXEC_VRF);
 
-        if (op == VNET_EXEC::VNET_EXEC_VRF)
-        {
-            vr_cntxt = { VR_TYPE::ING_VR_VALID, VR_TYPE::EGR_VR_VALID };
-        }
-        else
-        {
-            // BRIDGE Handling
-        }
-    }
-
-    bool isVnetexists(const std::string& name) const
+    bool isVnetExists(const std::string& name) const
     {
         return vnet_table_.find(name) != std::end(vnet_table_);
     }
