@@ -86,6 +86,7 @@ bool VNetVrfObject::createObj(vector<sai_attribute_t>& attrs)
         sai_object_id_t router_id;
         if (vr_type != VR_TYPE::VR_INVALID && l_fn(router_id))
         {
+            SWSS_LOG_DEBUG("VNET vr_type %d router id %lx  ", vr_type, router_id);
             vr_ids_.insert(std::pair<VR_TYPE, sai_object_id_t>(vr_type, router_id));
         }
     }
@@ -334,6 +335,11 @@ bool VNetRouteOrch::doRouteTask<VNetVrfObject>(const string& vnet, IpPrefix& ipP
     l_fn(vnet);
     for (auto peer : peer_list)
     {
+        if (!vnet_orch_->isVnetExists(peer))
+        {
+            SWSS_LOG_INFO("Peer VNET %s not yet created", peer.c_str());
+            return false;
+        }
         l_fn(peer);
     }
 
@@ -383,6 +389,11 @@ bool VNetRouteOrch::doRouteTask<VNetVrfObject>(const string& vnet, IpPrefix& ipP
 
     for (auto peer : peer_list)
     {
+        if (!vnet_orch_->isVnetExists(peer))
+        {
+            SWSS_LOG_INFO("Peer VNET %s not yet created", peer.c_str());
+            return false;
+        }
         l_fn(peer);
     }
 
@@ -411,7 +422,7 @@ void VNetRouteOrch::handleRoutes(const Request& request)
     {
         if (name == "ifname")
         {
-            ifname = name;
+            ifname = request.getAttrString(name);
         }
         else
         {
@@ -456,7 +467,7 @@ void VNetRouteOrch::handleTunnel(const Request& request)
     const std::string& vnet_name = request.getKeyString(0);
     auto ip_pfx = request.getKeyIpPrefix(1);
 
-    SWSS_LOG_INFO("VNET-RT '%s' add for ip %s", vnet_name.c_str(), ip_pfx.to_string().c_str());
+    SWSS_LOG_INFO("VNET-RT '%s' add for endpoint %s", vnet_name.c_str(), ip_pfx.to_string().c_str());
 
     if (vnet_orch_->isVnetExecVrf())
     {

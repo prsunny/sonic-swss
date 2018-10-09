@@ -62,6 +62,8 @@ public:
         peer_list_ = p_list;
     }
 
+    virtual sai_object_id_t getVRid() const = 0;
+
     const set<string>& getPeerList() const
     {
         return peer_list_;
@@ -92,6 +94,11 @@ public:
     virtual sai_object_id_t getDecapMapId() const
     {
         return getVRidEgress();
+    }
+
+    virtual sai_object_id_t getVRid() const
+    {
+        return getVRidIngress();
     }
 
     bool createObj(vector<sai_attribute_t>&);
@@ -137,6 +144,11 @@ public:
     const set<string>& getPeerList(const std::string& name) const
     {
         return vnet_table_.at(name)->getPeerList();
+    }
+
+    sai_object_id_t getVRid(const std::string& name) const
+    {
+        return vnet_table_.at(name)->getVRid();
     }
 
     bool isVnetExecVrf() const
