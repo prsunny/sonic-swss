@@ -74,7 +74,7 @@ class TestRouterInterface(object):
                 for fv in fvs:
                     if fv[0] == "SAI_ROUTER_INTERFACE_ATTR_TYPE":
                         assert fv[1] == "SAI_ROUTER_INTERFACE_TYPE_PORT"
-                    # the default MTU without any configuration is 9100, set by portmgr
+                    # the default MTU without any configuration is 9100
                     if fv[0] == "SAI_ROUTER_INTERFACE_ATTR_MTU":
                         assert fv[1] == "9100"
 
@@ -146,7 +146,7 @@ class TestRouterInterface(object):
                 for fv in fvs:
                     if fv[0] == "SAI_ROUTER_INTERFACE_ATTR_TYPE":
                         assert fv[1] == "SAI_ROUTER_INTERFACE_TYPE_PORT"
-                    # the default MTU without any configuration is 9100, set by portmgr
+                    # the default MTU without any configuration is 9100
                     if fv[0] == "SAI_ROUTER_INTERFACE_ATTR_MTU":
                         assert fv[1] == "9100"
 
@@ -296,7 +296,7 @@ class TestLagRouterInterfaceIpv4(object):
                 for fv in fvs:
                     if fv[0] == "SAI_ROUTER_INTERFACE_ATTR_TYPE":
                         assert fv[1] == "SAI_ROUTER_INTERFACE_TYPE_PORT"
-                    # the default MTU without any configuration is 9100, set by teammgr
+                    # the default MTU without any configuration is 9100
                     if fv[0] == "SAI_ROUTER_INTERFACE_ATTR_MTU":
                         assert fv[1] == "9100"
 

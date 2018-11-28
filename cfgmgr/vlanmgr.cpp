@@ -301,7 +301,6 @@ void VlanMgr::doVlanTask(Consumer &consumer)
                 fvVector.push_back(a);
             }
 
-            /* push mtu config */
             FieldValueTuple m("mtu", mtu);
             fvVector.push_back(m);
 

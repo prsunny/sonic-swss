@@ -1898,7 +1898,7 @@ void PortsOrch::doVlanTask(Consumer &consumer)
             Port l;
             if (!getPort(vlan_alias, l))
             {
-                SWSS_LOG_ERROR("Failed to get LAG %s", vlan_alias.c_str());
+                SWSS_LOG_ERROR("Failed to get VLAN %s", vlan_alias.c_str());
             }
             else
             {
