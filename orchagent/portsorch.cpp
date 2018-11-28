@@ -2063,7 +2063,7 @@ void PortsOrch::doLagTask(Consumer &consumer)
             }
             else
             {
-                if (mtu != 0 && l.m_rif_id)
+                if (mtu != 0)
                 {
                     l.m_mtu = mtu;
                     m_portList[alias] = l;
