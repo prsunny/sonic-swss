@@ -142,12 +142,12 @@ def set_neigh_in_kernel(ipclass, family, intf_idx, dst_ip, dmac):
     # so if the neighbor is active, it will become "reachable", otherwise, it will
     # stay at "stale" state and get aged out by kernel.
     try :
-        ipclass.neigh('add',
+        ipclass.neigh('replace',
             family=family_af_inet,
             dst=dst_ip,
             lladdr=dmac,
             ifindex=intf_idx,
-            state=ndmsg.states['stale'])
+            state=ndmsg.states['reachable'])
 
     # If neigh exists, log it but no exception raise, other exceptions, raise
     except NetlinkError as e:
