@@ -324,6 +324,9 @@ void VlanMgr::doVlanTask(Consumer &consumer)
             FieldValueTuple m("mtu", mtu);
             fvVector.push_back(m);
 
+            FieldValueTuple mc("mac", gMacAddress.to_string());
+            fvVector.push_back(mc);
+
             m_appVlanTableProducer.set(key, fvVector);
             m_vlans.insert(key);
 
