@@ -23,6 +23,7 @@ extern size_t gMaxBulkSize;
 /* Default maximum number of next hop groups */
 #define DEFAULT_NUMBER_OF_ECMP_GROUPS   128
 #define DEFAULT_MAX_ECMP_GROUP_SIZE     32
+#define STATE_DEFAULT_ROUTE_TABLE_NAME "DEFAULT_ROUTE_TABLE" // FIXME Temp definition
 
 const int routeorch_pri = 5;
 
@@ -75,6 +76,9 @@ RouteOrch::RouteOrch(DBConnector *db, string tableName, SwitchOrch *switchOrch, 
 
     SWSS_LOG_NOTICE("Maximum number of ECMP groups supported is %d", m_maxNextHopGroupCount);
 
+    m_stateDb = shared_ptr<DBConnector>(new DBConnector("STATE_DB", 0));
+    m_stateDefaultRouteTb = unique_ptr<swss::Table>(new Table(m_stateDb.get(), STATE_DEFAULT_ROUTE_TABLE_NAME));
+
     IpPrefix default_ip_prefix("0.0.0.0/0");
 
     sai_route_entry_t unicast_route_entry;
@@ -94,6 +98,7 @@ RouteOrch::RouteOrch(DBConnector *db, string tableName, SwitchOrch *switchOrch, 
     }
 
     gCrmOrch->incCrmResUsedCounter(CrmResourceType::CRM_IPV4_ROUTE);
+    updateDefRouteState();
 
     /* Add default IPv4 route into the m_syncdRoutes */
     m_syncdRoutes[gVirtualRouterId][default_ip_prefix] = NextHopGroupKey();
@@ -113,6 +118,7 @@ RouteOrch::RouteOrch(DBConnector *db, string tableName, SwitchOrch *switchOrch, 
     }
 
     gCrmOrch->incCrmResUsedCounter(CrmResourceType::CRM_IPV6_ROUTE);
+    updateDefRouteState(false);
 
     /* Add default IPv6 route into the m_syncdRoutes */
     m_syncdRoutes[gVirtualRouterId][v6_default_ip_prefix] = NextHopGroupKey();
@@ -203,6 +209,23 @@ void RouteOrch::addLinkLocalRouteToMe(sai_object_id_t vrf_id, IpPrefix linklocal
     gCrmOrch->incCrmResUsedCounter(CrmResourceType::CRM_IPV6_ROUTE);
 
     SWSS_LOG_NOTICE("Created link local ipv6 route  %s to cpu", linklocal_prefix.to_string().c_str());
+}
+
+void RouteOrch::updateDefRouteState(bool v4, bool add)
+{
+    vector<FieldValueTuple> tuples;
+    string state = add?"ok":"";
+    FieldValueTuple tuple("state", state);
+    tuples.push_back(tuple);
+
+    if (v4)
+    {
+        m_stateDefaultRouteTb->set("IPv4", tuples);
+    }
+    else
+    {
+        m_stateDefaultRouteTb->set("IPv6", tuples);
+    }
 }
 
 bool RouteOrch::hasNextHopGroup(const NextHopGroupKey& nexthops) const

@@ -137,6 +137,7 @@ public:
     bool createFineGrainedNextHopGroup(sai_object_id_t &next_hop_group_id, vector<sai_attribute_t> &nhg_attrs);
     bool removeFineGrainedNextHopGroup(sai_object_id_t &next_hop_group_id);
 
+    void updateDefRouteState(bool v4=true, bool add=false);
 private:
     SwitchOrch *m_switchOrch;
     NeighOrch *m_neighOrch;
@@ -147,6 +148,9 @@ private:
     int m_nextHopGroupCount;
     int m_maxNextHopGroupCount;
     bool m_resync;
+
+    shared_ptr<DBConnector> m_stateDb;
+    unique_ptr<swss::Table> m_stateDefaultRouteTb;
 
     RouteTables m_syncdRoutes;
     NextHopGroupTable m_syncdNextHopGroups;
