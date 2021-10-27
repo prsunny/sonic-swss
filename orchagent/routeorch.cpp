@@ -23,6 +23,7 @@ extern size_t gMaxBulkSize;
 /* Default maximum number of next hop groups */
 #define DEFAULT_NUMBER_OF_ECMP_GROUPS   128
 #define DEFAULT_MAX_ECMP_GROUP_SIZE     32
+#define STATE_DEFAULT_ROUTE_TABLE_NAME "ROUTE_TABLE" // FIXME Temp definition
 
 const int routeorch_pri = 5;
 
@@ -75,7 +76,12 @@ RouteOrch::RouteOrch(DBConnector *db, string tableName, SwitchOrch *switchOrch, 
 
     SWSS_LOG_NOTICE("Maximum number of ECMP groups supported is %d", m_maxNextHopGroupCount);
 
+    m_stateDb = shared_ptr<DBConnector>(new DBConnector("STATE_DB", 0));
+    m_stateDefaultRouteTb = unique_ptr<swss::Table>(new Table(m_stateDb.get(), STATE_DEFAULT_ROUTE_TABLE_NAME));
+
+
     IpPrefix default_ip_prefix("0.0.0.0/0");
+    updateDefRouteState("0.0.0.0/0");
 
     sai_route_entry_t unicast_route_entry;
     unicast_route_entry.vr_id = gVirtualRouterId;
@@ -101,6 +107,7 @@ RouteOrch::RouteOrch(DBConnector *db, string tableName, SwitchOrch *switchOrch, 
     SWSS_LOG_NOTICE("Create IPv4 default route with packet action drop");
 
     IpPrefix v6_default_ip_prefix("::/0");
+    updateDefRouteState("::/0");
 
     copy(unicast_route_entry.destination, v6_default_ip_prefix);
     subnet(unicast_route_entry.destination, unicast_route_entry.destination);
@@ -203,6 +210,16 @@ void RouteOrch::addLinkLocalRouteToMe(sai_object_id_t vrf_id, IpPrefix linklocal
     gCrmOrch->incCrmResUsedCounter(CrmResourceType::CRM_IPV6_ROUTE);
 
     SWSS_LOG_NOTICE("Created link local ipv6 route  %s to cpu", linklocal_prefix.to_string().c_str());
+}
+
+void RouteOrch::updateDefRouteState(string ip, bool add)
+{
+    vector<FieldValueTuple> tuples;
+    string state = add?"ok":"na";
+    FieldValueTuple tuple("state", state);
+    tuples.push_back(tuple);
+
+    m_stateDefaultRouteTb->set(ip, tuples);
 }
 
 bool RouteOrch::hasNextHopGroup(const NextHopGroupKey& nexthops) const
@@ -1898,6 +1915,11 @@ bool RouteOrch::addRoutePost(const RouteBulkContext& ctx, const NextHopGroupKey 
         }
     }
 
+    if (ipPrefix.isDefaultRoute())
+    {
+        updateDefRouteState(ipPrefix.to_string(), true);
+    }
+
     m_syncdRoutes[vrf_id][ipPrefix] = nextHops;
 
     notifyNextHopChangeObservers(vrf_id, ipPrefix, nextHops, true);
@@ -2006,6 +2028,8 @@ bool RouteOrch::removeRoutePost(const RouteBulkContext& ctx)
                 return parseHandleSaiStatusFailure(handle_status);
             }
         }
+
+        updateDefRouteState(ipPrefix.to_string());
 
         SWSS_LOG_INFO("Set route %s next hop ID to NULL", ipPrefix.to_string().c_str());
     }
